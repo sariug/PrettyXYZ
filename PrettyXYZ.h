@@ -6,12 +6,7 @@
 #include <vector>
 #include <numeric>
 #include <map>
-#include <glm/glm.hpp>
-#include <glm/gtc/type_ptr.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/matrix_inverse.hpp>
-
-#define PRETTY_TEXT_RENDER
+#include "math.h"
 #ifdef PRETTY_TEXT_RENDER
 #include <ft2build.h>
 #include FT_FREETYPE_H
@@ -19,7 +14,6 @@
 
 namespace PrettyXYZ
 {
-
     namespace ShaderProgramCheck
     {
         void checkShader(GLuint);
@@ -35,13 +29,324 @@ namespace PrettyXYZ
         CYLINDER_WITH_HEAD,
         CONE
     };
-    using Vector3 = glm::vec3;
-    using Vector4 = glm::vec4;
-    using Mat4 = glm::mat4;
+    namespace MathUtils
+    {
+        constexpr float pi = 3.14159265;
+
+        class Vector3
+        {
+        public:
+            Vector3() = default;
+            Vector3(float _s) : x(_s), y(_s), z(_s) {}
+            Vector3(float _x, float _y, float _z) : x(_x), y(_y), z(_z) {}
+
+            float x{0};
+            float y{0};
+            float z{0};
+        };
+
+        class Vector4
+        {
+        public:
+            Vector4() = default;
+            Vector4(float _s) : x(_s), y(_s), z(_s), w(_s) {}
+            Vector4(float _x, float _y, float _z, float _w) : x(_x), y(_y), z(_z), w(_w) {}
+            Vector4(Vector3 _o, float _w) : x(_o.x), y(_o.y), z(_o.z), w(_w) {}
+
+            Vector3 xyz() { return Vector3(x, y, z); }
+            float x{0};
+            float y{0};
+            float z{0};
+            float w{0};
+        };
+
+        class Matrix4
+        {
+        public:
+            Matrix4()
+            {
+                // Create Unit matrix
+                for (int i = 0; i < 16; i++)
+                    data[i] = i % 5 == 0 ? 1.0 : 0.0f;
+            };
+            Matrix4(float n)
+            {
+                for (int i = 0; i < 16; i++)
+                    data[i] = n;
+            }
+            Matrix4(const Matrix4 &other)
+            {
+                std::memcpy(&data[0], &other.data[0], sizeof(float) * 16); // OK
+            }
+            Matrix4(const float *raw)
+            {
+                for (int i = 0; i < 16; i++)
+                    data[i] = raw[i];
+            }
+            const float *begin()
+            {
+                return &(data[0]);
+            }
+            Vector4 getCol(int i) const
+            {
+                if (i < 0 || i > 3)
+                    throw "Unexpected indice for matrix column";
+                return Vector4(data[4 * i], data[4 * i + 1], data[4 * i + 2], data[4 * i + 3]);
+            }
+            Vector4 getRow(int i) const
+            {
+                if (i < 0 || i > 3)
+                    throw "Unexpected indice for matrix row";
+                return Vector4(data[i], data[i + 4], data[i + 8], data[i + 12]);
+            }
+
+            void resetTranslation()
+            {
+                for (int i = 0; i < 3; i++)
+                    data[12 + i] = 0;
+            }
+            void inverted()
+            {
+                float inv[16], det;
+                int i;
+
+                inv[0] = data[5] * data[10] * data[15] -
+                         data[5] * data[11] * data[14] -
+                         data[9] * data[6] * data[15] +
+                         data[9] * data[7] * data[14] +
+                         data[13] * data[6] * data[11] -
+                         data[13] * data[7] * data[10];
+
+                inv[4] = -data[4] * data[10] * data[15] +
+                         data[4] * data[11] * data[14] +
+                         data[8] * data[6] * data[15] -
+                         data[8] * data[7] * data[14] -
+                         data[12] * data[6] * data[11] +
+                         data[12] * data[7] * data[10];
+
+                inv[8] = data[4] * data[9] * data[15] -
+                         data[4] * data[11] * data[13] -
+                         data[8] * data[5] * data[15] +
+                         data[8] * data[7] * data[13] +
+                         data[12] * data[5] * data[11] -
+                         data[12] * data[7] * data[9];
+
+                inv[12] = -data[4] * data[9] * data[14] +
+                          data[4] * data[10] * data[13] +
+                          data[8] * data[5] * data[14] -
+                          data[8] * data[6] * data[13] -
+                          data[12] * data[5] * data[10] +
+                          data[12] * data[6] * data[9];
+
+                inv[1] = -data[1] * data[10] * data[15] +
+                         data[1] * data[11] * data[14] +
+                         data[9] * data[2] * data[15] -
+                         data[9] * data[3] * data[14] -
+                         data[13] * data[2] * data[11] +
+                         data[13] * data[3] * data[10];
+
+                inv[5] = data[0] * data[10] * data[15] -
+                         data[0] * data[11] * data[14] -
+                         data[8] * data[2] * data[15] +
+                         data[8] * data[3] * data[14] +
+                         data[12] * data[2] * data[11] -
+                         data[12] * data[3] * data[10];
+
+                inv[9] = -data[0] * data[9] * data[15] +
+                         data[0] * data[11] * data[13] +
+                         data[8] * data[1] * data[15] -
+                         data[8] * data[3] * data[13] -
+                         data[12] * data[1] * data[11] +
+                         data[12] * data[3] * data[9];
+
+                inv[13] = data[0] * data[9] * data[14] -
+                          data[0] * data[10] * data[13] -
+                          data[8] * data[1] * data[14] +
+                          data[8] * data[2] * data[13] +
+                          data[12] * data[1] * data[10] -
+                          data[12] * data[2] * data[9];
+
+                inv[2] = data[1] * data[6] * data[15] -
+                         data[1] * data[7] * data[14] -
+                         data[5] * data[2] * data[15] +
+                         data[5] * data[3] * data[14] +
+                         data[13] * data[2] * data[7] -
+                         data[13] * data[3] * data[6];
+
+                inv[6] = -data[0] * data[6] * data[15] +
+                         data[0] * data[7] * data[14] +
+                         data[4] * data[2] * data[15] -
+                         data[4] * data[3] * data[14] -
+                         data[12] * data[2] * data[7] +
+                         data[12] * data[3] * data[6];
+
+                inv[10] = data[0] * data[5] * data[15] -
+                          data[0] * data[7] * data[13] -
+                          data[4] * data[1] * data[15] +
+                          data[4] * data[3] * data[13] +
+                          data[12] * data[1] * data[7] -
+                          data[12] * data[3] * data[5];
+
+                inv[14] = -data[0] * data[5] * data[14] +
+                          data[0] * data[6] * data[13] +
+                          data[4] * data[1] * data[14] -
+                          data[4] * data[2] * data[13] -
+                          data[12] * data[1] * data[6] +
+                          data[12] * data[2] * data[5];
+
+                inv[3] = -data[1] * data[6] * data[11] +
+                         data[1] * data[7] * data[10] +
+                         data[5] * data[2] * data[11] -
+                         data[5] * data[3] * data[10] -
+                         data[9] * data[2] * data[7] +
+                         data[9] * data[3] * data[6];
+
+                inv[7] = data[0] * data[6] * data[11] -
+                         data[0] * data[7] * data[10] -
+                         data[4] * data[2] * data[11] +
+                         data[4] * data[3] * data[10] +
+                         data[8] * data[2] * data[7] -
+                         data[8] * data[3] * data[6];
+
+                inv[11] = -data[0] * data[5] * data[11] +
+                          data[0] * data[7] * data[9] +
+                          data[4] * data[1] * data[11] -
+                          data[4] * data[3] * data[9] -
+                          data[8] * data[1] * data[7] +
+                          data[8] * data[3] * data[5];
+
+                inv[15] = data[0] * data[5] * data[10] -
+                          data[0] * data[6] * data[9] -
+                          data[4] * data[1] * data[10] +
+                          data[4] * data[2] * data[9] +
+                          data[8] * data[1] * data[6] -
+                          data[8] * data[2] * data[5];
+
+                det = data[0] * inv[0] + data[1] * inv[4] + data[2] * inv[8] + data[3] * inv[12];
+
+                if (det == 0)
+                    return;
+
+                det = 1.0 / det;
+
+                for (i = 0; i < 16; i++)
+                    data[i] = inv[i] * det;
+            }
+            float &operator[](int i)
+            {
+                if (i >= 16)
+                {
+                    std::cout << "Array index out of bound, exiting";
+                    exit(-2); // TODO what is this really ? ?
+                }
+                return data[i];
+            }
+            const float operator[](int i) const
+            {
+                if (i >= 16)
+                {
+                    std::cout << "Array index out of bound, exiting";
+                    exit(-2); // TODO what is this really ? ?
+                }
+                return data[i];
+            }
+
+        private:
+            // store columnwise !
+            /*
+            [0,0][1,0][2,0][3,0]
+            [0,1][1,1][2,1][3,1]
+            [0,2][1,2][2,2][3,2]
+            [0,3][1,3][2,3][3,3]
+            */
+            float data[16];
+        };
+
+        // Arithmatics
+        inline float dot(const Vector4 &lhs, const Vector4 &rhs)
+        {
+            return lhs.x * rhs.x + lhs.y * rhs.y + lhs.z * rhs.z + lhs.w * rhs.w;
+        }
+        inline Vector3 operator+(const Vector3 &lhs, const Vector3 &rhs)
+        {
+            return Vector3(lhs.x + rhs.y, lhs.y + rhs.z, lhs.z + rhs.z);
+        };
+        inline void operator+=(Vector3 &lhs, const Vector3 &rhs)
+        {
+            lhs.x += rhs.y;
+            lhs.y += rhs.z;
+            lhs.z += rhs.z;
+        };
+        inline Vector3 operator*(const Vector3 &v, float t)
+        {
+            return Vector3(v.x * t, v.y * t, v.z * t);
+        };
+        inline Matrix4 operator+(const Matrix4 &lhs, const Matrix4 &rhs)
+        {
+            Matrix4 result;
+            for (int i = 0; i < 16; i++)
+                result[i] = lhs[i] + rhs[i];
+            return result;
+        }
+        inline Matrix4 operator*(const Matrix4 &m, const float &f)
+        {
+            Matrix4 result;
+            for (int i = 0; i < 16; i++)
+                result[i] = m[i] * f;
+            return result;
+        }
+        inline Vector4 operator*(const Matrix4 &m, const Vector4 &v)
+        {
+            return Vector4(m[0] * v.x + m[4] * v.y + m[8] * v.z + m[12] * v.w,
+                           m[1] * v.x + m[5] * v.y + m[9] * v.z + m[13] * v.w,
+                           m[2] * v.x + m[6] * v.y + m[10] * v.z + m[14] * v.w,
+                           m[3] * v.x + m[7] * v.y + m[11] * v.z + m[15] * v.w);
+        }
+        inline Matrix4 operator*(const Matrix4 &m1, const Matrix4 &m2)
+        {
+            Matrix4 result(0.0);
+            result[0] = dot(m1.getRow(0), m2.getCol(0));
+            result[4] = dot(m1.getRow(0), m2.getCol(1));
+            result[8] = dot(m1.getRow(0), m2.getCol(2));
+            result[12] = dot(m1.getRow(0), m2.getCol(3));
+            result[1] = dot(m1.getRow(1), m2.getCol(0));
+            result[5] = dot(m1.getRow(1), m2.getCol(1));
+            result[9] = dot(m1.getRow(1), m2.getCol(2));
+            result[13] = dot(m1.getRow(1), m2.getCol(3));
+            result[2] = dot(m1.getRow(2), m2.getCol(0));
+            result[6] = dot(m1.getRow(2), m2.getCol(1));
+            result[10] = dot(m1.getRow(2), m2.getCol(2));
+            result[14] = dot(m1.getRow(2), m2.getCol(3));
+            result[3] = dot(m1.getRow(3), m2.getCol(0));
+            result[7] = dot(m1.getRow(3), m2.getCol(1));
+            result[11] = dot(m1.getRow(3), m2.getCol(2));
+            result[15] = dot(m1.getRow(3), m2.getCol(3));
+            return result;
+        };
+
+        inline Matrix4 rotate(const Matrix4 &m, const float degrees, const Vector3 axis)
+        {
+            // https://en.wikipedia.org/wiki/Rodrigues'_rotation_formula#Matrix_notation
+            float theta = degrees * pi / 180;
+            Matrix4 C(0.0);
+            C[1] = axis.z;
+            C[2] = -axis.y;
+            C[4] = -axis.z;
+            C[6] = axis.x;
+            C[8] = axis.y;
+            C[9] = -axis.x;
+
+            Matrix4 I;
+            return m * (I + C * sinf(theta) + (C * C) * (1 - sinf(theta * theta)));
+        }
+    } // namespace MathUtils
+    using Vector3 = MathUtils::Vector3;
+    using Vector4 = MathUtils::Vector4;
+    using Matrix4 = MathUtils::Matrix4;
 
     struct PrettyVrtx;
 
-    void coordinate_axis(const glm::mat4 &_camera,
+    void coordinate_axis(const float *_camera,
                          Vector3 position,
                          float arrowSize,
                          STYLE render_style,
@@ -68,18 +373,18 @@ namespace PrettyXYZ
         PrettyVrtx(Vector3 p, Vector3 c) : pos(p), col(c) {}
         PrettyVrtx(Vector3 p, Vector3 n, Vector3 c) : pos(p), normal(n), col(c) {}
         Vector3 pos;
-        Vector3 normal = Vector3(0, 1, 0);
+        Vector3 normal = Vector3(0.0f, 1.0f, 0.0f);
         Vector3 col; // Alpha is not supported.
     };
     struct Character
     {
         unsigned int TextureID; // ID handle of the glyph texture
-        glm::ivec2 Size;        // Size of glyph
-        glm::ivec2 Bearing;     // Offset from baseline to left/top of glyph
-        unsigned int Advance;   // Horizontal offset to advance to next glyph
+        // Todo is this a bug ?
+        unsigned int Size[2]; // Size of glyph
+        unsigned int Advance; // Horizontal offset to advance to next glyph
     };
 
-    static Mat4 prettyOrthoProjection;
+    static Matrix4 prettyOrthoProjection;
 
     // Geometry Shader handle
     static GLuint prettyHandleGeoProgram = 0;
@@ -358,8 +663,7 @@ namespace PrettyXYZ
             // now store character for later use
             Character character = {
                 texture,
-                glm::ivec2(face->glyph->bitmap.width, face->glyph->bitmap.rows),
-                glm::ivec2(face->glyph->bitmap_left, face->glyph->bitmap_top),
+                {face->glyph->bitmap.width, face->glyph->bitmap.rows},
                 face->glyph->advance.x};
             Characters.insert(std::pair<char, Character>(c, character));
         }
@@ -381,8 +685,8 @@ namespace PrettyXYZ
     {
         // activate corresponding render state
         glUseProgram(prettyHandleTextProgram);
-        glUniform3fv(glGetUniformLocation(prettyHandleTextProgram, "textColor"), 1, glm::value_ptr(color));
-        glUniformMatrix4fv(glGetUniformLocation(prettyHandleTextProgram, "projection"), 1, GL_FALSE, glm::value_ptr(prettyOrthoProjection));
+        glUniform3fv(glGetUniformLocation(prettyHandleTextProgram, "textColor"), 1, &(color.x));
+        glUniformMatrix4fv(glGetUniformLocation(prettyHandleTextProgram, "projection"), 1, GL_FALSE, prettyOrthoProjection.begin());
 
         glActiveTexture(GL_TEXTURE0);
         glBindVertexArray(prettyTextVao);
@@ -393,14 +697,14 @@ namespace PrettyXYZ
         {
             Character ch = Characters[*c];
 
-            glUniform1f(glGetUniformLocation(prettyHandleTextProgram, "width"), ch.Size.x * scale);
-            glUniform1f(glGetUniformLocation(prettyHandleTextProgram, "height"), ch.Size.y * scale);
+            glUniform1f(glGetUniformLocation(prettyHandleTextProgram, "width"), ch.Size[0] * scale);
+            glUniform1f(glGetUniformLocation(prettyHandleTextProgram, "height"), ch.Size[1] * scale);
 
             // render glyph texture over quad
             glBindTexture(GL_TEXTURE_2D, ch.TextureID);
             // update content of VBO memory
             glBindBuffer(GL_ARRAY_BUFFER, prettyTextVbo);
-            glBufferSubData(GL_ARRAY_BUFFER, 0, 3 * sizeof(float), glm::value_ptr(location)); // be sure to use glBufferSubData and not glBufferData
+            glBufferSubData(GL_ARRAY_BUFFER, 0, 3 * sizeof(float), &(location.x)); // be sure to use glBufferSubData and not glBufferData
 
             glBindBuffer(GL_ARRAY_BUFFER, 0);
             // render quad
@@ -420,7 +724,7 @@ namespace PrettyXYZ
         // CreateBuffers
         glGenBuffers(1, &prettyGeoVbo);
         glGenBuffers(1, &prettyGeoIbo);
-        glUniformMatrix4fv(glGetUniformLocation(prettyHandleGeoProgram, "projection"), 1, GL_FALSE, glm::value_ptr(prettyOrthoProjection));
+        glUniformMatrix4fv(glGetUniformLocation(prettyHandleGeoProgram, "projection"), 1, GL_FALSE, prettyOrthoProjection.begin());
         glBindVertexArray(prettyGeoVao);
 
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, prettyGeoIbo);
@@ -457,9 +761,18 @@ namespace PrettyXYZ
         float T = B + previous_viewport[3];
         float N = -128.0;
         float F = 128.0;
-        prettyOrthoProjection = glm::ortho(L, R, B, T, N, F);
+
+        Matrix4 orthoProjection(0.0f);
+        orthoProjection[0] = 2.0f / (R - L);
+        orthoProjection[5] = 2.0f / (T - B);
+        orthoProjection[10] = -1.0f;
+        orthoProjection[12] = (R + L) / (L - R);
+        orthoProjection[13] = (T + B) / (B - T);
+        orthoProjection[15] = 1.0f;
+
+        prettyOrthoProjection = orthoProjection;
     }
-    void coordinate_axis(const glm::mat4 &_camera,
+    void coordinate_axis(const float *_camera,
                          Vector3 position = Vector3(50, 50, 50),
                          float arrowSize = 50,
                          STYLE render_style = STYLE::LINE,
@@ -544,7 +857,7 @@ namespace PrettyXYZ
 #endif
         }
 
-        Mat4 camera = _camera;
+        Matrix4 camera(_camera);
         int sectorCount = 40;
         std::vector<PrettyVrtx> vertices;
         std::vector<unsigned int> indices;
@@ -561,12 +874,12 @@ namespace PrettyXYZ
         std::iota(indices.begin(), indices.end(), 0);
 
         // no translation
-        camera[3] = Vector4(0, 0, 0, 1);
+        camera.resetTranslation();
         //inverse
-        camera = glm::inverse(camera);
+        camera.inverted();
 
         for (auto i = 0; i < 3; i++)
-            vertices[2 * i + 1].pos = origin + Vector3(camera * Vector4(axes[i] * arrowSize, 1));
+            vertices[2 * i + 1].pos = origin + (camera * Vector4(axes[i] * arrowSize, 1)).xyz();
 
         vertices[0].col = vertices[1].col = color_axis_x;
         vertices[2].col = vertices[3].col = color_axis_y;
@@ -599,9 +912,9 @@ namespace PrettyXYZ
             if (cone)
                 radius = 4;
 
-            float sectorStep = 2 * glm::pi<float>() / sectorCount;
+            float sectorStep = 2 * PrettyXYZ::MathUtils::pi / sectorCount;
 
-            glm::mat4 rotationMat = glm::rotate(glm::mat4(1.0f), glm::radians(degrees), axis);
+            Matrix4 rotationMat = MathUtils::rotate(Matrix4(), degrees, axis);
 
             Vector3 t(0, 0, 4 * length);
 
@@ -623,12 +936,12 @@ namespace PrettyXYZ
                 for (int j = 0, k = 0; j <= sectorCount; ++j, k++)
                 {
                     auto pos = unitVertices[k].pos + Vector3(unitVertices[k].pos.x * radius, unitVertices[k].pos.y * radius, h);
-                    pos = Vector3(rotationMat * Vector4(pos, 1.0));
-                    auto normal = Vector3(rotationMat * Vector4(unitVertices[k].pos, 1));
+                    pos = (rotationMat * Vector4(pos, 1.0)).xyz();
+                    auto normal = (rotationMat * Vector4(unitVertices[k].pos, 1)).xyz();
                     if (cone)
-                        pos += Vector3(rotationMat * Vector4(t, 1.0));
+                        pos += (rotationMat * Vector4(t, 1.0)).xyz();
 
-                    pos = origin + Vector3(camera * Vector4(pos, 1));
+                    pos = origin + (camera * Vector4(pos, 1)).xyz();
 
                     vertices.push_back(PrettyVrtx(pos, normal, color));
                 }
@@ -678,8 +991,7 @@ namespace PrettyXYZ
         // Y
         generateCylinder(Vector3(1, 0, 0), -90, color_axis_y, arrowSize * 0.8f, _cone, _rev_cone);
         renderGeometry(vertices, indices);
-
-    } // namespace PrettyXYZ
+    }
 
     namespace ShaderProgramCheck
     {
@@ -721,4 +1033,5 @@ namespace PrettyXYZ
             std::cout << "Shader program is created without a problem" << std::endl;
         }
     } // namespace ShaderProgramCheck
+
 } // namespace PrettyXYZ
