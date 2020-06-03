@@ -6,7 +6,9 @@
 #include <vector>
 #include <numeric>
 #include <map>
-#include "math.h"
+#include <cstring>
+#include <cmath>
+
 #ifdef PRETTY_TEXT_RENDER
 #include <ft2build.h>
 #include FT_FREETYPE_H
@@ -63,6 +65,16 @@ namespace PrettyXYZ
         class Matrix4
         {
         public:
+            void print()
+            {
+                for (int i = 0; i < 16; i++)
+                {
+                    if (i % 4 == 0)
+                        std::cout << std::endl;
+
+                    std::cout << data[i] << " ";
+                }
+            }
             Matrix4()
             {
                 // Create Unit matrix
@@ -83,6 +95,13 @@ namespace PrettyXYZ
                 for (int i = 0; i < 16; i++)
                     data[i] = raw[i];
             }
+            Matrix4(std::initializer_list<float> il)
+            {
+                std::copy(il.begin(), il.end(), data);
+                // std::iota(indices.begin(), indices.end(), 0);
+
+                // v.insert(v.end(), l.begin(), l.end());
+            };
             const float *begin()
             {
                 return &(data[0]);
@@ -269,7 +288,7 @@ namespace PrettyXYZ
         }
         inline Vector3 operator+(const Vector3 &lhs, const Vector3 &rhs)
         {
-            return Vector3(lhs.x + rhs.y, lhs.y + rhs.z, lhs.z + rhs.z);
+            return Vector3(lhs.x + rhs.x, lhs.y + rhs.y, lhs.z + rhs.z);
         };
         inline void operator+=(Vector3 &lhs, const Vector3 &rhs)
         {
@@ -326,18 +345,23 @@ namespace PrettyXYZ
 
         inline Matrix4 rotate(const Matrix4 &m, const float degrees, const Vector3 axis)
         {
-            // https://en.wikipedia.org/wiki/Rodrigues'_rotation_formula#Matrix_notation
+            // This rotation matrix works clockwise. Careful !
+            // TODO: Make it counter clockwise
             float theta = degrees * pi / 180;
-            Matrix4 C(0.0);
-            C[1] = axis.z;
-            C[2] = -axis.y;
-            C[4] = -axis.z;
-            C[6] = axis.x;
-            C[8] = axis.y;
-            C[9] = -axis.x;
 
-            Matrix4 I;
-            return m * (I + C * sinf(theta) + (C * C) * (1 - sinf(theta * theta)));
+            float x = axis.x;
+            float y = axis.y;
+            float z = axis.z;
+
+            float c = cos(theta);
+            float s = sin(theta);
+
+            Matrix4 rotationMat({x * x * (1.0f - c) + c, x * y * (1.0f - c) - z * s, x * z * (1.0f - c) + y * s, 0.0f,
+                                 y * x * (1.0f - c) + z * s, y * y * (1.0f - c) + c, y * z * (1.0f - c) - x * s, 0.0f,
+                                 z * x * (1.0f - c) - y * s, z * y * (1.0f - c) + x * s, z * z * (1.0f - c) + c, 0.0f,
+                                 0.0f, 0.0f, 0.0f, 1.0f});
+            rotationMat.print();
+            return rotationMat * m;
         }
     } // namespace MathUtils
     using Vector3 = MathUtils::Vector3;
@@ -566,12 +590,12 @@ namespace PrettyXYZ
     {
         // Vertex shader
         GLuint vHandle = glCreateShader(GL_VERTEX_SHADER);
-        glShaderSource(vHandle, 1, &unrealistic_vs, nullptr);
+        glShaderSource(vHandle, 1, &shaded_vs, nullptr);
         glCompileShader(vHandle);
 
         // Fragment shader
         GLuint fHandle = glCreateShader(GL_FRAGMENT_SHADER);
-        glShaderSource(fHandle, 1, &unrealistic_fs, nullptr);
+        glShaderSource(fHandle, 1, &shaded_fs, nullptr);
         glCompileShader(fHandle);
 
         ShaderProgramCheck::checkShader(vHandle);
@@ -724,7 +748,9 @@ namespace PrettyXYZ
         // CreateBuffers
         glGenBuffers(1, &prettyGeoVbo);
         glGenBuffers(1, &prettyGeoIbo);
+
         glUniformMatrix4fv(glGetUniformLocation(prettyHandleGeoProgram, "projection"), 1, GL_FALSE, prettyOrthoProjection.begin());
+
         glBindVertexArray(prettyGeoVao);
 
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, prettyGeoIbo);
@@ -765,7 +791,7 @@ namespace PrettyXYZ
         Matrix4 orthoProjection(0.0f);
         orthoProjection[0] = 2.0f / (R - L);
         orthoProjection[5] = 2.0f / (T - B);
-        orthoProjection[10] = -1.0f;
+        orthoProjection[10] = -2 / (F - N);
         orthoProjection[12] = (R + L) / (L - R);
         orthoProjection[13] = (T + B) / (B - T);
         orthoProjection[15] = 1.0f;
@@ -773,7 +799,7 @@ namespace PrettyXYZ
         prettyOrthoProjection = orthoProjection;
     }
     void coordinate_axis(const float *_camera,
-                         Vector3 position = Vector3(50, 50, 50),
+                         Vector3 position = Vector3(50, 50, 0),
                          float arrowSize = 50,
                          STYLE render_style = STYLE::LINE,
                          bool render_text = false,
@@ -858,6 +884,7 @@ namespace PrettyXYZ
         }
 
         Matrix4 camera(_camera);
+
         int sectorCount = 40;
         std::vector<PrettyVrtx> vertices;
         std::vector<unsigned int> indices;
@@ -877,10 +904,11 @@ namespace PrettyXYZ
         camera.resetTranslation();
         //inverse
         camera.inverted();
-
+        camera.print();
         for (auto i = 0; i < 3; i++)
             vertices[2 * i + 1].pos = origin + (camera * Vector4(axes[i] * arrowSize, 1)).xyz();
-
+        for (auto &v : vertices)
+            std::cout << v.pos.x << " " << v.pos.y << " " << v.pos.z << "\n";
         vertices[0].col = vertices[1].col = color_axis_x;
         vertices[2].col = vertices[3].col = color_axis_y;
         vertices[4].col = vertices[5].col = color_axis_z;
@@ -903,7 +931,6 @@ namespace PrettyXYZ
         {
             return restorePreviousState();
         }
-
         // Generate Cylinder
         auto generateCylinder = [&](Vector3 axis, float degrees, Vector3 color, float length, bool cone = false, bool reverseCone = false) {
             vertices.clear();
@@ -915,7 +942,8 @@ namespace PrettyXYZ
             float sectorStep = 2 * PrettyXYZ::MathUtils::pi / sectorCount;
 
             Matrix4 rotationMat = MathUtils::rotate(Matrix4(), degrees, axis);
-
+            std::cout << "\nrotationMat: " << degrees << std::endl;
+            rotationMat.print();
             Vector3 t(0, 0, 4 * length);
 
             std::vector<PrettyVrtx> unitVertices;
@@ -940,7 +968,7 @@ namespace PrettyXYZ
                     auto normal = (rotationMat * Vector4(unitVertices[k].pos, 1)).xyz();
                     if (cone)
                         pos += (rotationMat * Vector4(t, 1.0)).xyz();
-
+    
                     pos = origin + (camera * Vector4(pos, 1)).xyz();
 
                     vertices.push_back(PrettyVrtx(pos, normal, color));
@@ -963,16 +991,18 @@ namespace PrettyXYZ
         {
             _cone = true;
         }
-        // Heads
-        generateCylinder(Vector3(0, 1, 0), 0, color_axis_z, arrowSize * 0.2f, _cone);
-        renderGeometry(vertices, indices);
-        // X
-        generateCylinder(Vector3(0, 1, 0), 90, color_axis_x, arrowSize * 0.2f, _cone);
-        renderGeometry(vertices, indices);
-        // Y
-        generateCylinder(Vector3(1, 0, 0), -90, color_axis_y, arrowSize * 0.2f, _cone);
-        renderGeometry(vertices, indices);
-
+        if (render_style != STYLE::CYLINDER)
+        {
+            // Heads
+            generateCylinder(Vector3(0, 1, 0), 90, color_axis_z, arrowSize * 0.2f, _cone);
+            renderGeometry(vertices, indices);
+            // X
+            generateCylinder(Vector3(0, 1, 0), -90, color_axis_x, arrowSize * 0.2f, _cone);
+            renderGeometry(vertices, indices);
+            // Y
+            generateCylinder(Vector3(1, 0, 0), 90, color_axis_y, arrowSize * 0.2f, _cone);
+            renderGeometry(vertices, indices);
+        }
         if (render_style == STYLE::LINE_WITH_HEAD)
             return restorePreviousState();
         else if (render_style == STYLE::CYLINDER_WITH_HEAD)
@@ -986,10 +1016,10 @@ namespace PrettyXYZ
         generateCylinder(Vector3(0, 1, 0), 0, color_axis_z, arrowSize * 0.8f, _cone, _rev_cone);
         renderGeometry(vertices, indices);
         // X
-        generateCylinder(Vector3(0, 1, 0), 90, color_axis_x, arrowSize * 0.8f, _cone, _rev_cone);
+        generateCylinder(Vector3(0, 1, 0), -90, color_axis_x, arrowSize * 0.8f, _cone, _rev_cone);
         renderGeometry(vertices, indices);
         // Y
-        generateCylinder(Vector3(1, 0, 0), -90, color_axis_y, arrowSize * 0.8f, _cone, _rev_cone);
+        generateCylinder(Vector3(1, 0, 0), 90, color_axis_y, arrowSize * 0.8f, _cone, _rev_cone);
         renderGeometry(vertices, indices);
     }
 
@@ -1035,3 +1065,4 @@ namespace PrettyXYZ
     } // namespace ShaderProgramCheck
 
 } // namespace PrettyXYZ
+
