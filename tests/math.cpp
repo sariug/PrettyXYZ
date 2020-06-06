@@ -4,6 +4,22 @@
 #include "../PrettyXYZ.h"
 
 using namespace PrettyXYZ::MathUtils;
+
+TEST_CASE("Matrix rotation", "Rotation")
+{
+
+    Matrix4 expected({0.7268376, 0.6414292, -0.2455112, 0,
+                      -0.4733292, 0.7268376, 0.4976611, 0,
+                      0.4976611, -0.2455112, 0.8319001, 0,
+                      0, 0, 0, 1});
+
+    Vector3 axis(2, 2, 3);
+    axis.normalized();
+    Matrix4 real = rotate(50, axis);
+    for (int i = 0; i < 16; i++)
+        REQUIRE(real[i] == Approx(expected[i])); // Approx is needed due to floating point comparison
+}
+
 TEST_CASE("Math operation", "MathOp")
 {
     Vector3 V1(3);
