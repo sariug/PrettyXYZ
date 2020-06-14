@@ -1,5 +1,7 @@
 #pragma once
+#ifndef PRETTY_NO_GLEW
 #include <GL/glew.h>
+#endif
 #include <GL/gl.h>
 
 #include <iostream>
@@ -94,7 +96,7 @@ namespace PrettyXYZ
             {
                 // Create Unit matrix
                 for (int i = 0; i < 16; i++)
-                    data[i] = i % 5 == 0 ? 1.0 : 0.0f;
+                    data[i] = i % 5 == 0 ? 1.0f : 0.0f;
             };
             Matrix4(float n)
             {
@@ -261,7 +263,7 @@ namespace PrettyXYZ
                 if (det == 0)
                     return;
 
-                det = 1.0 / det;
+                det = 1.0f / det;
 
                 for (i = 0; i < 16; i++)
                     data[i] = inv[i] * det;
@@ -779,9 +781,9 @@ namespace PrettyXYZ
         glVertexAttribPointer(2, 3, GL_FLOAT, GL_TRUE, sizeof(PrettyVrtx), (void *)offsetof(PrettyVrtx, col));
 
         if (indices.size() == 6)
-            glDrawElements(GL_LINES, indices.size(), GL_UNSIGNED_INT, nullptr);
+            glDrawElements(GL_LINES, (GLsizei)indices.size(), GL_UNSIGNED_INT, nullptr);
         else
-            glDrawElements(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, nullptr);
+            glDrawElements(GL_TRIANGLES, (GLsizei)indices.size(), GL_UNSIGNED_INT, nullptr);
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
         glBindVertexArray(0);
@@ -792,12 +794,12 @@ namespace PrettyXYZ
     {
         GLint previous_viewport[4];
         glGetIntegerv(GL_VIEWPORT, previous_viewport);
-        float L = previous_viewport[0];
-        float R = L + previous_viewport[2];
+        float L = static_cast<float>(previous_viewport[0]);
+        float R = L + static_cast<float>(previous_viewport[2]);
 
         // B-T ? or T-B check. TODO
-        float B = previous_viewport[1];
-        float T = B + previous_viewport[3];
+        float B = static_cast<float>(previous_viewport[1]);
+        float T = B + static_cast<float>(previous_viewport[3]);
         float N = -128.0;
         float F = 128.0;
 
