@@ -7,6 +7,8 @@ Today, there are thousands of opensource-commercial libraries. They all require 
 
 For a developer, a simple three lines are more than great. But fancy users like *PrettyXYZ*. 
 
+PrettyXYZ is written with the thought of immediate mode. It tries stealing your OpenGL context, renders axes and gives the context back. 
+
 ![Examples](images/examples.jpeg)
 
 ## Getting Started
@@ -59,6 +61,13 @@ void prettyCoordinateAxes(const float *_camera,
                           Vector3 color_text_x, 
                           Vector3 color_text_y,
                           Vector3 color_text_z);
+```
+
+In main loop:
+```
+...
+PrettyXYZ::prettyCoordinateAxes(cameraMatrix); // Creates 3 lines(red-green-blue)
+...
 ```
 
 ### Prerequisites
