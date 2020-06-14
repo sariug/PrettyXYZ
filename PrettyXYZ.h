@@ -82,16 +82,6 @@ namespace PrettyXYZ
         class Matrix4
         {
         public:
-            void print()
-            {
-                for (int i = 0; i < 16; i++)
-                {
-                    if (i % 4 == 0)
-                        std::cout << std::endl;
-
-                    std::cout << data[i] << " ";
-                }
-            }
             Matrix4()
             {
                 // Create Unit matrix
@@ -273,7 +263,7 @@ namespace PrettyXYZ
                 if (i >= 16)
                 {
                     std::cout << "Array index out of bound, exiting";
-                    exit(-2); // TODO what is this really ? ?
+                    throw;
                 }
                 return data[i];
             }
@@ -282,7 +272,7 @@ namespace PrettyXYZ
                 if (i >= 16)
                 {
                     std::cout << "Array index out of bound, exiting";
-                    exit(-2); // TODO what is this really ? ?
+                    throw;
                 }
                 return data[i];
             }
@@ -384,21 +374,21 @@ namespace PrettyXYZ
     using Matrix4 = MathUtils::Matrix4;
 
     struct PrettyVrtx;
-
-    void coordinate_axis(const float *_camera,
-                         Vector3 position,
-                         float arrowSize,
-                         STYLE render_style,
-                         bool render_text,
-                         Vector3 color_axis_x,
-                         Vector3 color_axis_y,
-                         Vector3 color_axis_z,
-                         const char *axis_x,
-                         const char *axis_y,
-                         const char *axis_z,
-                         Vector3 color_text_x,
-                         Vector3 color_text_y,
-                         Vector3 color_text_z);
+    struct Character;
+    void prettyCoordinateAxes(const float *_camera,
+                              Vector3 position,
+                              float arrowSize,
+                              STYLE render_style,
+                              bool render_text,
+                              Vector3 color_axis_x,
+                              Vector3 color_axis_y,
+                              Vector3 color_axis_z,
+                              const char *axis_x,
+                              const char *axis_y,
+                              const char *axis_z,
+                              Vector3 color_text_x,
+                              Vector3 color_text_y,
+                              Vector3 color_text_z);
     void initGeometryShaderProgram();
     void initTextShaderProgram();
     void setOrthographicProjectionMatrix();
@@ -544,6 +534,240 @@ namespace PrettyXYZ
         "    outColor = vec4(color*max(vec3(norm),0.5)+.25,1.0f);\n"
         "}\n";
 
+    void prettyCoordinateAxes(const float *_camera,
+                              Vector3 position = Vector3(50, 50, 0),
+                              float arrowSize = 50,
+                              STYLE render_style = STYLE::LINE,
+                              bool render_text = false,
+                              Vector3 color_axis_x = Vector3(1, 0, 0),
+                              Vector3 color_axis_y = Vector3(0, 1, 0),
+                              Vector3 color_axis_z = Vector3(0, 0, 1),
+                              const char *axis_x = "X",
+                              const char *axis_y = "Y",
+                              const char *axis_z = "Z",
+                              Vector3 color_text_x = Vector3(1.0f),
+                              Vector3 color_text_y = Vector3(1.0f),
+                              Vector3 color_text_z = Vector3(1.0f))
+
+    {
+        // Texture / shader program / vba
+        GLint previous_active_texture;
+        glGetIntegerv(GL_ACTIVE_TEXTURE, &previous_active_texture);
+        glActiveTexture(GL_TEXTURE0);
+        GLint previous_program;
+        glGetIntegerv(GL_CURRENT_PROGRAM, &previous_program);
+        GLint previous_texture;
+        glGetIntegerv(GL_TEXTURE_BINDING_2D, &previous_texture);
+        GLint previous_array_buffer;
+        glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &previous_array_buffer);
+        GLint previous_vertex_array_object;
+        glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &previous_vertex_array_object);
+        // Blendings may change now and then. better keep them.
+        GLint previous_blend_src_rgb;
+        glGetIntegerv(GL_BLEND_SRC_RGB, &previous_blend_src_rgb);
+        GLint previous_blend_dst_rgb;
+        glGetIntegerv(GL_BLEND_DST_RGB, &previous_blend_dst_rgb);
+        GLint previous_blend_src_alpha;
+        glGetIntegerv(GL_BLEND_SRC_ALPHA, &previous_blend_src_alpha);
+        GLint previous_blend_dst_alpha;
+        glGetIntegerv(GL_BLEND_DST_ALPHA, &previous_blend_dst_alpha);
+        GLint previous_blend_equation_rgb;
+        glGetIntegerv(GL_BLEND_EQUATION_RGB, &previous_blend_equation_rgb);
+        GLint previous_blend_equation_alpha;
+        glGetIntegerv(GL_BLEND_EQUATION_ALPHA, &previous_blend_equation_alpha);
+        // States
+        GLboolean previous_enable_blend = glIsEnabled(GL_BLEND);
+        GLboolean previous_enable_cull_face = glIsEnabled(GL_CULL_FACE);
+        GLboolean previous_enable_depth_test = glIsEnabled(GL_DEPTH_TEST);
+        GLboolean previous_enable_scissor_test = glIsEnabled(GL_SCISSOR_TEST);
+
+        auto restorePreviousState = [&]() -> void {
+            // Destroy the Pretty VAO
+            glDeleteVertexArrays(1, &prettyGeoVao);
+
+            // Restore modified GL state
+            glUseProgram(previous_program);
+            glBindTexture(GL_TEXTURE_2D, previous_texture);
+            glActiveTexture(previous_active_texture);
+            glBindVertexArray(previous_vertex_array_object);
+            glBindBuffer(GL_ARRAY_BUFFER, previous_array_buffer);
+            glBlendEquationSeparate(previous_blend_equation_rgb, previous_blend_equation_alpha);
+            glBlendFuncSeparate(previous_blend_src_rgb, previous_blend_dst_rgb, previous_blend_src_alpha, previous_blend_dst_alpha);
+            if (previous_enable_blend)
+                glEnable(GL_BLEND);
+            else
+                glDisable(GL_BLEND);
+            if (previous_enable_cull_face)
+                glEnable(GL_CULL_FACE);
+            else
+                glDisable(GL_CULL_FACE);
+            if (previous_enable_depth_test)
+                glEnable(GL_DEPTH_TEST);
+            else
+                glDisable(GL_DEPTH_TEST);
+            if (previous_enable_scissor_test)
+                glEnable(GL_SCISSOR_TEST);
+            else
+                glDisable(GL_SCISSOR_TEST);
+        };
+        // check for init
+        if (!prettyHandleGeoProgram)
+        {
+            initGeometryShaderProgram();
+#ifdef PRETTY_TEXT_RENDER
+            initTextShaderProgram();
+#endif
+        }
+
+        // I did not want to write a 2D vector just for position on screen.
+        // Ensure that Vector3.z is 0
+        if(!(position.z==0)) throw std::invalid_argument("Screen position cannot have a Z position");
+
+        // Sector count for cylinders and cones incase needed.
+        int sectorCount = 20;
+
+        // Initiate Vertice and Indice arrays.
+        std::vector<PrettyVrtx> vertices;
+        std::vector<unsigned int> indices;
+
+        Matrix4 camera(_camera);
+        Vector3 origin = position;
+
+        setOrthographicProjectionMatrix();
+
+        // Currently just let the principal directions.
+        std::vector<Vector3> axes = {Vector3(1, 0, 0), Vector3(0, 1, 0), Vector3(0, 0, 1)};
+
+        vertices.resize(6, PrettyVrtx(origin, Vector3(0, 0, 0)));
+
+        // Set indices for lines
+        indices.resize(6);
+        std::iota(indices.begin(), indices.end(), 0);
+
+        // no translation
+        camera.resetTranslation();
+        //inverse
+        camera.inverted();
+
+        for (auto i = 0; i < 3; i++)
+            vertices[2 * i + 1].pos = origin + (camera * Vector4(axes[i] * arrowSize, 1)).xyz();
+
+        vertices[0].col = vertices[1].col = color_axis_x;
+        vertices[2].col = vertices[3].col = color_axis_y;
+        vertices[4].col = vertices[5].col = color_axis_z;
+#ifdef PRETTY_TEXT_RENDER
+
+        if (render_text)
+        {
+            glDisable(GL_CULL_FACE);
+            glEnable(GL_BLEND);
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+            // Render text
+            renderText(axis_x, .5, vertices[1].pos, color_text_x);
+            renderText(axis_y, .5, vertices[3].pos, color_text_y);
+            renderText(axis_z, .5, vertices[5].pos, color_text_z);
+        }
+#endif
+        if (render_style == STYLE::LINE || render_style == STYLE::LINE_WITH_HEAD)
+            renderGeometry(vertices, indices);
+        if (render_style == STYLE::LINE)
+        {
+            return restorePreviousState();
+        }
+        // Generate Cylinder
+        auto generateCylinder = [&](Vector3 axis, float degrees, Vector3 color, float length, bool cone = false, bool reverseCone = false) {
+            vertices.clear();
+
+            float radius = 1;
+            if (cone)
+                radius = 4;
+
+            float sectorStep = 2 * PrettyXYZ::MathUtils::pi / sectorCount;
+
+            Matrix4 rotationMat = MathUtils::rotate(degrees, axis);
+
+            Vector3 t(0, 0, 4 * length);
+
+            std::vector<PrettyVrtx> unitVertices;
+            unitVertices.resize(sectorCount + 1);
+            for (int i = 0; i <= sectorCount; ++i)
+                unitVertices[i] = PrettyVrtx(Vector3(std::cos(i * sectorStep), sin(i * sectorStep), 0), color);
+            // put side vertices to arrays
+            for (int i = 0; i < 2; ++i)
+            {
+                float h = .0f + i * length;
+                if (cone && i == 1)
+                    radius = 0;
+                else if (reverseCone && i == 0)
+                    radius = 0;
+                else if (reverseCone && i == 1)
+                    radius = 1;
+
+                for (int j = 0, k = 0; j <= sectorCount; ++j, k++)
+                {
+                    auto pos = unitVertices[k].pos + Vector3(unitVertices[k].pos.x * radius, unitVertices[k].pos.y * radius, h);
+                    pos = (rotationMat * Vector4(pos, 1.0)).xyz();
+                    auto normal = (rotationMat * Vector4(unitVertices[k].pos, 1)).xyz();
+
+                    if (cone)
+                    {
+
+                        pos += (rotationMat * Vector4(t, 1.0)).xyz();
+                    }
+
+                    pos = origin + (camera * Vector4(pos, 1)).xyz();
+
+                    vertices.push_back(PrettyVrtx(pos, normal, color));
+                }
+            }
+            // put base and top vertices to arrays
+            for (int i = 0; i < 2; ++i)
+            {
+                float h = 0 + i * length;
+                // center point
+                vertices.push_back(PrettyVrtx(Vector3(0, 0, h), color));
+            }
+        };
+        updateIndicesForCylinder(indices, sectorCount);
+        // Set OpenGL options
+        glEnable(GL_CULL_FACE);
+        bool _cone = false;
+        bool _rev_cone = false;
+        if (render_style == STYLE::LINE_WITH_HEAD || render_style == STYLE::CYLINDER_WITH_HEAD || render_style == STYLE::CONE)
+        {
+            _cone = true;
+        }
+        if (render_style != STYLE::CYLINDER)
+        {
+            // Heads
+            generateCylinder(Vector3(0, 0, 1), 0, color_axis_z, arrowSize * 0.2f, _cone);
+            renderGeometry(vertices, indices);
+            // X
+            generateCylinder(Vector3(0, 1, 0), 90, color_axis_x, arrowSize * 0.2f, _cone);
+            renderGeometry(vertices, indices);
+            // Y
+            generateCylinder(Vector3(1, 0, 0), -90, color_axis_y, arrowSize * 0.2f, _cone);
+            renderGeometry(vertices, indices);
+        }
+        if (render_style == STYLE::LINE_WITH_HEAD)
+            return restorePreviousState();
+        else if (render_style == STYLE::CYLINDER_WITH_HEAD)
+            _cone = false;
+        else if (render_style == STYLE::CONE)
+        {
+            _cone = false;
+            _rev_cone = true;
+        }
+        // Bases
+        generateCylinder(Vector3(0, 0, 1), 0, color_axis_z, arrowSize * 0.8f, _cone, _rev_cone);
+        renderGeometry(vertices, indices);
+        // X
+        generateCylinder(Vector3(0, 1, 0), 90, color_axis_x, arrowSize * 0.8f, _cone, _rev_cone);
+        renderGeometry(vertices, indices);
+        // Y
+        generateCylinder(Vector3(1, 0, 0), -90, color_axis_y, arrowSize * 0.8f, _cone, _rev_cone);
+        renderGeometry(vertices, indices);
+    }
     void updateIndicesForCylinder(std::vector<unsigned int> &indices, int sectorCount)
     {
         indices.resize(12 * sectorCount);
@@ -623,8 +847,67 @@ namespace PrettyXYZ
         glLinkProgram(prettyHandleGeoProgram);
         ShaderProgramCheck::checkProgram(prettyHandleGeoProgram);
     }
-#ifdef PRETTY_TEXT_RENDER
 
+    void renderGeometry(const std::vector<PrettyVrtx> &vertices, std::vector<unsigned int> &indices)
+    {
+        glUseProgram(prettyHandleGeoProgram);
+        glGenVertexArrays(1, &prettyGeoVao);
+
+        // CreateBuffers
+        glGenBuffers(1, &prettyGeoVbo);
+        glGenBuffers(1, &prettyGeoIbo);
+
+        glUniformMatrix4fv(glGetUniformLocation(prettyHandleGeoProgram, "projection"), 1, GL_FALSE, prettyOrthoProjection.begin());
+
+        glBindVertexArray(prettyGeoVao);
+
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, prettyGeoIbo);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), indices.data(), GL_DYNAMIC_DRAW);
+
+        glBindBuffer(GL_ARRAY_BUFFER, prettyGeoVbo);
+        glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(PrettyVrtx), vertices.data(), GL_DYNAMIC_DRAW);
+        glEnableVertexAttribArray(0);
+        glEnableVertexAttribArray(1);
+        glEnableVertexAttribArray(2);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(PrettyVrtx), nullptr);
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(PrettyVrtx), (void *)offsetof(PrettyVrtx, normal));
+        glVertexAttribPointer(2, 3, GL_FLOAT, GL_TRUE, sizeof(PrettyVrtx), (void *)offsetof(PrettyVrtx, col));
+
+        if (indices.size() == 6)
+            glDrawElements(GL_LINES, (GLsizei)indices.size(), GL_UNSIGNED_INT, nullptr);
+        else
+            glDrawElements(GL_TRIANGLES, (GLsizei)indices.size(), GL_UNSIGNED_INT, nullptr);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        glBindVertexArray(0);
+        glUseProgram(0);
+    }
+
+    void setOrthographicProjectionMatrix()
+    {
+        GLint previous_viewport[4];
+        glGetIntegerv(GL_VIEWPORT, previous_viewport);
+        float L = static_cast<float>(previous_viewport[0]);
+        float R = L + static_cast<float>(previous_viewport[2]);
+
+        // B-T ? or T-B check. TODO
+        float B = static_cast<float>(previous_viewport[1]);
+        float T = B + static_cast<float>(previous_viewport[3]);
+        float N = -128.0;
+        float F = 128.0;
+
+        Matrix4 orthoProjection(0.0f);
+        orthoProjection[0] = 2.0f / (R - L);
+        orthoProjection[5] = 2.0f / (T - B);
+        orthoProjection[10] = -2 / (F - N);
+        orthoProjection[12] = (R + L) / (L - R);
+        orthoProjection[13] = (T + B) / (B - T);
+        orthoProjection[15] = 1.0f;
+
+        prettyOrthoProjection = orthoProjection;
+    }
+    
+#ifdef PRETTY_TEXT_RENDER
     void initTextShaderProgram()
     {
         // Vertex shader
@@ -755,291 +1038,6 @@ namespace PrettyXYZ
         glBindTexture(GL_TEXTURE_2D, 0);
     }
 #endif
-    void renderGeometry(const std::vector<PrettyVrtx> &vertices, std::vector<unsigned int> &indices)
-    {
-        glUseProgram(prettyHandleGeoProgram);
-        glGenVertexArrays(1, &prettyGeoVao);
-
-        // CreateBuffers
-        glGenBuffers(1, &prettyGeoVbo);
-        glGenBuffers(1, &prettyGeoIbo);
-
-        glUniformMatrix4fv(glGetUniformLocation(prettyHandleGeoProgram, "projection"), 1, GL_FALSE, prettyOrthoProjection.begin());
-
-        glBindVertexArray(prettyGeoVao);
-
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, prettyGeoIbo);
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), indices.data(), GL_DYNAMIC_DRAW);
-
-        glBindBuffer(GL_ARRAY_BUFFER, prettyGeoVbo);
-        glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(PrettyVrtx), vertices.data(), GL_DYNAMIC_DRAW);
-        glEnableVertexAttribArray(0);
-        glEnableVertexAttribArray(1);
-        glEnableVertexAttribArray(2);
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(PrettyVrtx), nullptr);
-        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(PrettyVrtx), (void *)offsetof(PrettyVrtx, normal));
-        glVertexAttribPointer(2, 3, GL_FLOAT, GL_TRUE, sizeof(PrettyVrtx), (void *)offsetof(PrettyVrtx, col));
-
-        if (indices.size() == 6)
-            glDrawElements(GL_LINES, (GLsizei)indices.size(), GL_UNSIGNED_INT, nullptr);
-        else
-            glDrawElements(GL_TRIANGLES, (GLsizei)indices.size(), GL_UNSIGNED_INT, nullptr);
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-        glBindBuffer(GL_ARRAY_BUFFER, 0);
-        glBindVertexArray(0);
-        glUseProgram(0);
-    }
-
-    void setOrthographicProjectionMatrix()
-    {
-        GLint previous_viewport[4];
-        glGetIntegerv(GL_VIEWPORT, previous_viewport);
-        float L = static_cast<float>(previous_viewport[0]);
-        float R = L + static_cast<float>(previous_viewport[2]);
-
-        // B-T ? or T-B check. TODO
-        float B = static_cast<float>(previous_viewport[1]);
-        float T = B + static_cast<float>(previous_viewport[3]);
-        float N = -128.0;
-        float F = 128.0;
-
-        Matrix4 orthoProjection(0.0f);
-        orthoProjection[0] = 2.0f / (R - L);
-        orthoProjection[5] = 2.0f / (T - B);
-        orthoProjection[10] = -2 / (F - N);
-        orthoProjection[12] = (R + L) / (L - R);
-        orthoProjection[13] = (T + B) / (B - T);
-        orthoProjection[15] = 1.0f;
-
-        prettyOrthoProjection = orthoProjection;
-    }
-    void coordinate_axis(const float *_camera,
-                         Vector3 position = Vector3(50, 50, 0),
-                         float arrowSize = 50,
-                         STYLE render_style = STYLE::LINE,
-                         bool render_text = false,
-                         Vector3 color_axis_x = Vector3(1, 0, 0),
-                         Vector3 color_axis_y = Vector3(0, 1, 0),
-                         Vector3 color_axis_z = Vector3(0, 0, 1),
-                         const char *axis_x = "X",
-                         const char *axis_y = "Y",
-                         const char *axis_z = "Z",
-                         Vector3 color_text_x = Vector3(1.0f),
-                         Vector3 color_text_y = Vector3(1.0f),
-                         Vector3 color_text_z = Vector3(1.0f))
-
-    {
-        // Texture / shader program / vba
-        GLint previous_active_texture;
-        glGetIntegerv(GL_ACTIVE_TEXTURE, &previous_active_texture);
-        glActiveTexture(GL_TEXTURE0);
-        GLint previous_program;
-        glGetIntegerv(GL_CURRENT_PROGRAM, &previous_program);
-        GLint previous_texture;
-        glGetIntegerv(GL_TEXTURE_BINDING_2D, &previous_texture);
-        GLint previous_array_buffer;
-        glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &previous_array_buffer);
-        GLint previous_vertex_array_object;
-        glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &previous_vertex_array_object);
-        // Blendings may change now and then. better keep them.
-        GLint previous_blend_src_rgb;
-        glGetIntegerv(GL_BLEND_SRC_RGB, &previous_blend_src_rgb);
-        GLint previous_blend_dst_rgb;
-        glGetIntegerv(GL_BLEND_DST_RGB, &previous_blend_dst_rgb);
-        GLint previous_blend_src_alpha;
-        glGetIntegerv(GL_BLEND_SRC_ALPHA, &previous_blend_src_alpha);
-        GLint previous_blend_dst_alpha;
-        glGetIntegerv(GL_BLEND_DST_ALPHA, &previous_blend_dst_alpha);
-        GLint previous_blend_equation_rgb;
-        glGetIntegerv(GL_BLEND_EQUATION_RGB, &previous_blend_equation_rgb);
-        GLint previous_blend_equation_alpha;
-        glGetIntegerv(GL_BLEND_EQUATION_ALPHA, &previous_blend_equation_alpha);
-        // States
-        GLboolean previous_enable_blend = glIsEnabled(GL_BLEND);
-        GLboolean previous_enable_cull_face = glIsEnabled(GL_CULL_FACE);
-        GLboolean previous_enable_depth_test = glIsEnabled(GL_DEPTH_TEST);
-        GLboolean previous_enable_scissor_test = glIsEnabled(GL_SCISSOR_TEST);
-
-        auto restorePreviousState = [&]() -> void {
-            // Destroy the Pretty VAO
-            glDeleteVertexArrays(1, &prettyGeoVao);
-
-            // Restore modified GL state
-            glUseProgram(previous_program);
-            glBindTexture(GL_TEXTURE_2D, previous_texture);
-            glActiveTexture(previous_active_texture);
-            glBindVertexArray(previous_vertex_array_object);
-            glBindBuffer(GL_ARRAY_BUFFER, previous_array_buffer);
-            glBlendEquationSeparate(previous_blend_equation_rgb, previous_blend_equation_alpha);
-            glBlendFuncSeparate(previous_blend_src_rgb, previous_blend_dst_rgb, previous_blend_src_alpha, previous_blend_dst_alpha);
-            if (previous_enable_blend)
-                glEnable(GL_BLEND);
-            else
-                glDisable(GL_BLEND);
-            if (previous_enable_cull_face)
-                glEnable(GL_CULL_FACE);
-            else
-                glDisable(GL_CULL_FACE);
-            if (previous_enable_depth_test)
-                glEnable(GL_DEPTH_TEST);
-            else
-                glDisable(GL_DEPTH_TEST);
-            if (previous_enable_scissor_test)
-                glEnable(GL_SCISSOR_TEST);
-            else
-                glDisable(GL_SCISSOR_TEST);
-        };
-        // check for init
-        if (!prettyHandleGeoProgram)
-        {
-            initGeometryShaderProgram();
-#ifdef PRETTY_TEXT_RENDER
-            initTextShaderProgram();
-#endif
-        }
-
-        Matrix4 camera(_camera);
-
-        int sectorCount = 40;
-        std::vector<PrettyVrtx> vertices;
-        std::vector<unsigned int> indices;
-
-        Vector3 origin = position;
-
-        setOrthographicProjectionMatrix();
-        std::vector<Vector3> axes = {Vector3(1, 0, 0), Vector3(0, 1, 0), Vector3(0, 0, 1)};
-
-        vertices.resize(6, PrettyVrtx(origin, Vector3(0, 0, 0)));
-
-        // Set indices for lines
-        indices.resize(6);
-        std::iota(indices.begin(), indices.end(), 0);
-
-        // no translation
-        camera.resetTranslation();
-        //inverse
-        camera.inverted();
-        camera.print();
-        for (auto i = 0; i < 3; i++)
-            vertices[2 * i + 1].pos = origin + (camera * Vector4(axes[i] * arrowSize, 1)).xyz();
-        for (auto &v : vertices)
-            std::cout << v.pos.x << " " << v.pos.y << " " << v.pos.z << "\n";
-        vertices[0].col = vertices[1].col = color_axis_x;
-        vertices[2].col = vertices[3].col = color_axis_y;
-        vertices[4].col = vertices[5].col = color_axis_z;
-#ifdef PRETTY_TEXT_RENDER
-
-        if (render_text)
-        {
-            glDisable(GL_CULL_FACE);
-            glEnable(GL_BLEND);
-            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-            // Render text
-            renderText(axis_x, .5, vertices[1].pos, color_text_x);
-            renderText(axis_y, .5, vertices[3].pos, color_text_y);
-            renderText(axis_z, .5, vertices[5].pos, color_text_z);
-        }
-#endif
-        if (render_style == STYLE::LINE || render_style == STYLE::LINE_WITH_HEAD)
-            renderGeometry(vertices, indices);
-        if (render_style == STYLE::LINE)
-        {
-            return restorePreviousState();
-        }
-        // Generate Cylinder
-        auto generateCylinder = [&](Vector3 axis, float degrees, Vector3 color, float length, bool cone = false, bool reverseCone = false) {
-            vertices.clear();
-
-            float radius = 1;
-            if (cone)
-                radius = 4;
-
-            float sectorStep = 2 * PrettyXYZ::MathUtils::pi / sectorCount;
-
-            Matrix4 rotationMat = MathUtils::rotate(degrees, axis);
-
-            Vector3 t(0, 0, 4 * length);
-
-            std::vector<PrettyVrtx> unitVertices;
-            unitVertices.resize(sectorCount + 1);
-            for (int i = 0; i <= sectorCount; ++i)
-                unitVertices[i] = PrettyVrtx(Vector3(std::cos(i * sectorStep), sin(i * sectorStep), 0), color);
-            // put side vertices to arrays
-            for (int i = 0; i < 2; ++i)
-            {
-                float h = .0f + i * length;
-                if (cone && i == 1)
-                    radius = 0;
-                else if (reverseCone && i == 0)
-                    radius = 0;
-                else if (reverseCone && i == 1)
-                    radius = 1;
-
-                for (int j = 0, k = 0; j <= sectorCount; ++j, k++)
-                {
-                    auto pos = unitVertices[k].pos + Vector3(unitVertices[k].pos.x * radius, unitVertices[k].pos.y * radius, h);
-                    pos = (rotationMat * Vector4(pos, 1.0)).xyz();
-                    auto normal = (rotationMat * Vector4(unitVertices[k].pos, 1)).xyz();
-
-                    if (cone)
-                    {
-
-                        pos += (rotationMat * Vector4(t, 1.0)).xyz();
-                    }
-
-                    pos = origin + (camera * Vector4(pos, 1)).xyz();
-
-                    vertices.push_back(PrettyVrtx(pos, normal, color));
-                }
-            }
-            // put base and top vertices to arrays
-            for (int i = 0; i < 2; ++i)
-            {
-                float h = 0 + i * length;
-                // center point
-                vertices.push_back(PrettyVrtx(Vector3(0, 0, h), color));
-            }
-        };
-        updateIndicesForCylinder(indices, sectorCount);
-        // Set OpenGL options
-        glEnable(GL_CULL_FACE);
-        bool _cone = false;
-        bool _rev_cone = false;
-        if (render_style == STYLE::LINE_WITH_HEAD || render_style == STYLE::CYLINDER_WITH_HEAD || render_style == STYLE::CONE)
-        {
-            _cone = true;
-        }
-        if (render_style != STYLE::CYLINDER)
-        {
-            // Heads
-            generateCylinder(Vector3(0, 0, 1), 0, color_axis_z, arrowSize * 0.2f, _cone);
-            renderGeometry(vertices, indices);
-            // X
-            generateCylinder(Vector3(0, 1, 0), 90, color_axis_x, arrowSize * 0.2f, _cone);
-            renderGeometry(vertices, indices);
-            // Y
-            generateCylinder(Vector3(1, 0, 0), -90, color_axis_y, arrowSize * 0.2f, _cone);
-            renderGeometry(vertices, indices);
-        }
-        if (render_style == STYLE::LINE_WITH_HEAD)
-            return restorePreviousState();
-        else if (render_style == STYLE::CYLINDER_WITH_HEAD)
-            _cone = false;
-        else if (render_style == STYLE::CONE)
-        {
-            _cone = false;
-            _rev_cone = true;
-        }
-        // Bases
-        generateCylinder(Vector3(0, 0, 1), 0, color_axis_z, arrowSize * 0.8f, _cone, _rev_cone);
-        renderGeometry(vertices, indices);
-        // X
-        generateCylinder(Vector3(0, 1, 0), 90, color_axis_x, arrowSize * 0.8f, _cone, _rev_cone);
-        renderGeometry(vertices, indices);
-        // Y
-        generateCylinder(Vector3(1, 0, 0), -90, color_axis_y, arrowSize * 0.8f, _cone, _rev_cone);
-        renderGeometry(vertices, indices);
-    }
 
     namespace ShaderProgramCheck
     {
@@ -1066,7 +1064,7 @@ namespace PrettyXYZ
             {
                 glGetProgramInfoLog(programID, sizeof(_eCode), nullptr, _eCode);
                 std::cout << "Error happened while linking program " << _eCode << std::endl;
-                throw("Error happened while linking program.");
+                throw;
             }
 
             glValidateProgram(programID);
@@ -1076,7 +1074,7 @@ namespace PrettyXYZ
             {
                 glGetProgramInfoLog(programID, sizeof(_eCode), nullptr, _eCode);
                 std::cout << "Error happened while validating program " << _eCode << std::endl;
-                throw("Error happened while validating program.");
+                throw;
             }
             std::cout << "Shader program is created without a problem" << std::endl;
         }
