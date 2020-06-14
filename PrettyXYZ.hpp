@@ -10,8 +10,8 @@
 #include <map>
 #endif
 
+#include <algorithm>
 #include <cmath>    // trigonometry
-#include <cstring>  // memcopy
 #include <iostream>
 #include <vector>
 
@@ -94,7 +94,7 @@ public:
       data[i] = n;
   }
   Matrix4(const Matrix4 &other) {
-    std::memcpy(&data[0], &other.data[0], sizeof(float) * 16); // OK
+    std::copy(other.data, other.data+16, data);
   }
   Matrix4(const float *raw) {
     for (int i = 0; i < 16; i++)
