@@ -1,7 +1,7 @@
 #define CATCH_CONFIG_MAIN // This tells Catch to provide a main() - only do this in one cpp file
-#include "catch.hpp"
+#include "3rdparty/catch.hpp"
 #define PRETTY_TEXT_RENDER
-#include "../PrettyXYZ.h"
+#include "../PrettyXYZ.hpp"
 
 using namespace PrettyXYZ::MathUtils;
 

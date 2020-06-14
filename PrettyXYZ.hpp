@@ -10,10 +10,9 @@
 #include <map>
 #endif
 
-#include <cmath>
-#include <cstring>
+#include <cmath>    // trigonometry
+#include <cstring>  // memcopy
 #include <iostream>
-#include <numeric>
 #include <vector>
 
 namespace PrettyXYZ {
@@ -26,7 +25,23 @@ void checkProgram(GLuint);
 enum class STYLE { LINE, LINE_WITH_HEAD, CYLINDER, CYLINDER_WITH_HEAD, CONE };
 namespace MathUtils {
 constexpr float pi = 3.14159265;
+// Declerations
+// Base
+class Vector3;
+class Vector4;
+class Matrix4;
+//Arithmatics
+inline float dot(const Vector4 &lhs, const Vector4 &rhs);
+inline Vector3 operator+(const Vector3 &lhs, const Vector3 &rhs);
+inline void operator+=(Vector3 &lhs, const Vector3 &rhs);
+inline Vector3 operator*(const Vector3 &v, float t);
+inline Matrix4 operator+(const Matrix4 &lhs, const Matrix4 &rhs);
+inline Matrix4 operator*(const Matrix4 &m, const float &f);
+inline Vector4 operator*(const Matrix4 &m, const Vector4 &v);
+inline Matrix4 operator*(const Matrix4 &m1, const Matrix4 &m2);
+inline Matrix4 rotate(const float degrees, const Vector3 axis);
 
+// Defitinitions
 class Vector3 {
 public:
   Vector3() = default;
@@ -35,6 +50,7 @@ public:
   float length() { return sqrtf(x * x + y * y + z * z); }
   void normalized() {
     auto l = this->length();
+    assert(l!=0);
     x /= l;
     y /= l;
     z /= l;
@@ -292,8 +308,35 @@ using Matrix4 = MathUtils::Matrix4;
 
 struct PrettyVrtx;
 struct Character;
+
+/**
+ * Creates the coordinate axes according to defined parameters.
+ *
+ *
+ * @param _camera     : 16 float camera(view) matrix. Expected to be columnwise as following:  
+ *                
+ *                      [0,0][1,0][2,0][3,0]
+ *                      [0,1][1,1][2,1][3,1]
+ *                      [0,2][1,2][2,2][3,2]
+ *                      [0,3][1,3][2,3][3,3] <- Translation vector.
+ *
+ * @param position    : Position of the origin of the axis on screen space. The third parameter
+ *                      shall be 0.
+ * @param arrow_size  : The size of the arrow
+ * @param render_style: The style of the axis: See STYLE Enums.
+ * @param render_text : Bool to render text or not. 
+ * @param color_axis_x: Color of the x axis. Default red. 
+ * @param color_axis_y: Color of the y axis. Default green. 
+ * @param color_axis_z: Color of the z axis. Default blue.
+ * @param axis_x      : Text written for axis X. Default "X"
+ * @param axis_y      : Text written for axis Y. Default "Y"
+ * @param axis_z      : Text written for axis Z. Default "Z"
+ * @param color_text_x: Color of the text of x axis. Default red. 
+ * @param color_text_y: Color of the text of y axis. Default green. 
+ * @param color_text_z: Color of the text of z axis. Default blue. 
+ */
 void prettyCoordinateAxes(const float *_camera, Vector3 position,
-                          float arrowSize, STYLE render_style, bool render_text,
+                          float arrow_size, STYLE render_style, bool render_text,
                           Vector3 color_axis_x, Vector3 color_axis_y,
                           Vector3 color_axis_z, const char *axis_x,
                           const char *axis_y, const char *axis_z,
@@ -446,7 +489,7 @@ const GLchar *unrealistic_fs =
 
 void prettyCoordinateAxes(
     const float *_camera, Vector3 position = Vector3(50, 50, 0),
-    float arrowSize = 50, STYLE render_style = STYLE::LINE,
+    float arrow_size = 50, STYLE render_style = STYLE::LINE,
     bool render_text = false, Vector3 color_axis_x = Vector3(1, 0, 0),
     Vector3 color_axis_y = Vector3(0, 1, 0),
     Vector3 color_axis_z = Vector3(0, 0, 1), const char *axis_x = "X",
@@ -559,7 +602,7 @@ void prettyCoordinateAxes(
 
   for (auto i = 0; i < 3; i++)
     vertices[2 * i + 1].pos =
-        origin + (camera * Vector4(axes[i] * arrowSize, 1)).xyz();
+        origin + (camera * Vector4(axes[i] * arrow_size, 1)).xyz();
 
   vertices[0].col = vertices[1].col = color_axis_x;
   vertices[2].col = vertices[3].col = color_axis_y;
@@ -648,15 +691,15 @@ void prettyCoordinateAxes(
   }
   if (render_style != STYLE::CYLINDER) {
     // Heads
-    generateCylinder(Vector3(0, 0, 1), 0, color_axis_z, arrowSize * 0.2f,
+    generateCylinder(Vector3(0, 0, 1), 0, color_axis_z, arrow_size * 0.2f,
                      _cone);
     renderGeometry(vertices, indices);
     // X
-    generateCylinder(Vector3(0, 1, 0), 90, color_axis_x, arrowSize * 0.2f,
+    generateCylinder(Vector3(0, 1, 0), 90, color_axis_x, arrow_size * 0.2f,
                      _cone);
     renderGeometry(vertices, indices);
     // Y
-    generateCylinder(Vector3(1, 0, 0), -90, color_axis_y, arrowSize * 0.2f,
+    generateCylinder(Vector3(1, 0, 0), -90, color_axis_y, arrow_size * 0.2f,
                      _cone);
     renderGeometry(vertices, indices);
   }
@@ -669,15 +712,15 @@ void prettyCoordinateAxes(
     _rev_cone = true;
   }
   // Bases
-  generateCylinder(Vector3(0, 0, 1), 0, color_axis_z, arrowSize * 0.8f, _cone,
+  generateCylinder(Vector3(0, 0, 1), 0, color_axis_z, arrow_size * 0.8f, _cone,
                    _rev_cone);
   renderGeometry(vertices, indices);
   // X
-  generateCylinder(Vector3(0, 1, 0), 90, color_axis_x, arrowSize * 0.8f, _cone,
+  generateCylinder(Vector3(0, 1, 0), 90, color_axis_x, arrow_size * 0.8f, _cone,
                    _rev_cone);
   renderGeometry(vertices, indices);
   // Y
-  generateCylinder(Vector3(1, 0, 0), -90, color_axis_y, arrowSize * 0.8f, _cone,
+  generateCylinder(Vector3(1, 0, 0), -90, color_axis_y, arrow_size * 0.8f, _cone,
                    _rev_cone);
   renderGeometry(vertices, indices);
 }
