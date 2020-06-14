@@ -18,7 +18,7 @@ PrettyXYZ is a header only library. Include it directly and use it.
 ```
 
 - To create axis text `#define PRETTY_TEXT_RENDER` before include.
-- If you do not use `glew` but your build system takes care of OpenGL calls, to undefine glew use `PRETTY_NO_GLEW` before include. 
+- If you do not use `glew` but your build system takes care of OpenGL calls, to undefine glew use with `#define  PRETTY_NO_GLEW` before include. 
 
 
 ```
