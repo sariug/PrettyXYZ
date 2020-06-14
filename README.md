@@ -7,6 +7,8 @@ Today, there are thousands of opensource-commercial libraries. They all require 
 
 For a developer, a simple three lines are more than great. But fancy users like *PrettyXYZ*. 
 
+PrettyXYZ is written with the thought of immediate mode. It tries stealing your OpenGL context, renders axes and gives the context back. 
+
 ![Examples](images/examples.jpeg)
 
 ## Getting Started
@@ -18,7 +20,7 @@ PrettyXYZ is a header only library. Include it directly and use it.
 ```
 
 - To create axis text `#define PRETTY_TEXT_RENDER` before include.
-- If you do not use `glew` but your build system takes care of OpenGL calls, to undefine glew use `PRETTY_NO_GLEW` before include. 
+- If you do not use `glew` but your build system takes care of OpenGL calls, to undefine glew use with `#define  PRETTY_NO_GLEW` before include. 
 
 
 ```
@@ -59,6 +61,13 @@ void prettyCoordinateAxes(const float *_camera,
                           Vector3 color_text_x, 
                           Vector3 color_text_y,
                           Vector3 color_text_z);
+```
+
+In main loop:
+```
+...
+PrettyXYZ::prettyCoordinateAxes(cameraMatrix); // Creates 3 lines(red-green-blue)
+...
 ```
 
 ### Prerequisites
