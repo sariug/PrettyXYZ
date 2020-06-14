@@ -1,4 +1,6 @@
 # PrettyXYZ
+[![Code Grade](https://www.code-inspector.com/project/8739/score/svg)](https://www.code-inspector.com/public/project/136/mygithubproject/dashboard)
+[![Code Grade](https://www.code-inspector.com/project/8739/status/svg)](https://www.code-inspector.com/public/project/136/mygithubproject/dashboard)
 
     "You never get a second chance to make a first impression"
                                                  Andrew Grant
